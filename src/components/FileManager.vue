@@ -1,12 +1,14 @@
 <script lang="ts" setup>
 import {NUpload, NUploadTrigger, UploadCustomRequestOptions} from "naive-ui/es";
-import {NDataTable} from "naive-ui/es";
+import {NDataTable, DataTableColumn} from "naive-ui/es";
 import {NIcon} from "naive-ui/es";
 import {NDropdown, DropdownOption} from "naive-ui/es";
+import {NModal} from "naive-ui/es";
+import {NInput} from "naive-ui/es";
 
 import {h, nextTick, ref, watch} from "vue";
 
-import {GetFolderList, UploadFile} from "../api";
+import {CreateDirectory, Delete, GetFolderList, UploadFile} from "../api";
 import {UseStore} from "../Store";
 import * as p from "path-browserify";
 
@@ -19,7 +21,7 @@ interface RowData
 
 const store = UseStore();
 
-const columns = [
+const columns: Array<DataTableColumn<RowData>> = [
     {
         key: "file_type",
         fixed: "left",
@@ -109,7 +111,7 @@ const columns = [
 const data = ref<Array<object>>([]);
 const row_props = (row: RowData) => {
     return {
-        onDblclick: (e: MouseEvent) => {
+        onDblclick: (_: MouseEvent) => {
             if (row.file_type === "directory")
             {
                 EnterDirectory(row.file_name);
@@ -187,15 +189,16 @@ const EnterDirectory = async (path: string) => {
 const OpenFile = async (path: string) => {
     console.log("Try to open file: " + path);
 };
-const Mkdir = async (directory_name: string) => {
-    console.log(directory_name);
+const Mkdir = () => {
+    show_modal.value = true;
 };
 const DeleteDirectory = async (directory_name: string) => {
-    console.log("d:" + directory_name);
-
+    await Delete(p.join(current_path.value, directory_name));
+    await RefreshDirectory(current_path.value);
 };
 const DeleteFile = async (file_name: string) => {
-    console.log("f:" + file_name);
+    await Delete(p.join(current_path.value, file_name));
+    await RefreshDirectory(current_path.value);
 };
 
 watch(current_path, value => {RefreshDirectory(value)});
@@ -214,7 +217,11 @@ const options: DropdownOption[] = [
     },
     {
         label: "上传文件",
-        key: "upload",
+        key: "upload_file",
+    },
+    {
+        label: "上传文件夹",
+        key: "upload_directory",
     },
     {
         label: () => h("span", { style: { color: "red" } }, "删除"),
@@ -234,11 +241,26 @@ const HandleSelect = (BeginUpload: () => void, key: string) => {
     }
     else if (key === "mkdir")
     {
-        console.log("mkdir");
-        Mkdir("");
+        Mkdir();
     }
-    else if (key === "upload")
+    else if (key === "upload_file")
     {
+        let list = document.getElementsByClassName("n-upload-file-input");
+        if (list.length == 0)
+        {
+            throw new RangeError("Couldn't find file input!");
+        }
+        list[0].removeAttribute("webkitdirectory");
+        BeginUpload();
+    }
+    else if (key === "upload_directory")
+    {
+        let list = document.getElementsByClassName("n-upload-file-input");
+        if (list.length == 0)
+        {
+            throw new RangeError("Couldn't find file input!");
+        }
+        list[0].setAttribute("webkitdirectory", "webkitdirectory");
         BeginUpload();
     }
     else if (key === "delete")
@@ -265,28 +287,48 @@ const HandleSelect = (BeginUpload: () => void, key: string) => {
 const CustomUploadFile = (
     {
         file: file_info,
-        action,
         onFinish,
         onError,
     }: UploadCustomRequestOptions
 ) => {
-    console.log(file_info.file);
-    console.log(action);
-    console.log(onFinish);
-    console.log(onError);
-    UploadFile(file_info.file as File, current_path.value, onFinish, onError);
+    let file = file_info.file as File;
+    if (file.webkitRelativePath != "" && file.webkitRelativePath != undefined)
+    {
+        // upload directory
+        let target_path = file.webkitRelativePath.substring(0, file.webkitRelativePath.lastIndexOf('/'));
+        let full_path = p.join(current_path.value, target_path);
+        CreateDirectory(full_path)
+            .then(
+                () => {
+                    UploadFile(file, full_path, onFinish, onError).then(() => RefreshDirectory(current_path.value));
+                }
+            );
+    }
+    else
+    {
+        // upload file(s)
+        UploadFile(file, current_path.value, onFinish, onError).then(() => RefreshDirectory(current_path.value));
+    }
 };
+
+const show_modal = ref(false);
+const HandleMkdirConfirm = () => {
+    if (new_folder_name.value == null)
+    {
+        return;
+    }
+    CreateDirectory(
+        p.join(current_path.value, new_folder_name.value)
+    ).then(
+        () => RefreshDirectory(current_path.value)
+    );
+    new_folder_name.value = null;
+};
+const new_folder_name = ref<string | null>(null);
 </script>
 
 <template>
     <div class="file_manager">
-<!--        <NButton @click="GetPathFiles">浏览目录</NButton>-->
-<!--        <NUpload-->
-<!--            action="https://localhost:5001/upload"-->
-<!--            :custom-request="UploadFile"-->
-<!--        >-->
-<!--            <NButton>上传文件</NButton>-->
-<!--        </NUpload>-->
         <n-data-table
             class="file_list"
             :bordered="false"
@@ -294,7 +336,7 @@ const CustomUploadFile = (
             :data="data"
             :row-props="row_props"
         />
-        <n-upload abstract :custom-request="CustomUploadFile">
+        <n-upload abstract :multiple="true" :custom-request="CustomUploadFile">
             <n-upload-trigger abstract #="{handleClick: HandleClick}">
                 <n-dropdown
                     placement="bottom-start"
@@ -308,19 +350,25 @@ const CustomUploadFile = (
                 />
             </n-upload-trigger>
         </n-upload>
-
+        <n-modal
+            v-model:show="show_modal"
+            preset="dialog"
+            title="新建文件夹"
+            :show-icon="false"
+            negative-text="取消"
+            positive-text="确认"
+            :on-positive-click="HandleMkdirConfirm"
+        >
+            <n-input
+                v-model:value="new_folder_name"
+                type="text"
+                placeholder="文件夹名"
+            />
+        </n-modal>
     </div>
 </template>
 
 <style scoped>
-.controller
-{
-    margin: 20px 2% 60px 2%;
-    display: flex;
-    align-content: center;
-    justify-content: space-around;
-}
-
 .file_manager
 {
     height: 100%;

@@ -13,7 +13,6 @@ const RunServer = async () => {
         }
     );
 };
-
 const ShutdownServer = async () => {
     const store = UseStore();
     let uri = "http://" + store.endpoint + "/processes";
@@ -24,7 +23,6 @@ const ShutdownServer = async () => {
         }
     );
 };
-
 const ExecCommand = async (command: string) => {
     const store = UseStore();
     let uri = "http://" + store.endpoint + "/processes/command";
@@ -39,7 +37,6 @@ const ExecCommand = async (command: string) => {
         }
     );
 };
-
 const IsServerRunning = async (): Promise<boolean> => {
     const store = UseStore();
     let uri = "http://" + store.endpoint + "/processes/";
@@ -87,7 +84,16 @@ const GetFolderList = async (path: string) => {
     let uri = "http://" + store.endpoint + "/files/" + path;
     return await (await fetch(uri)).json();
 };
-
+const CreateDirectory = async (path: string) => {
+    const store = UseStore();
+    let uri = "http://" + store.endpoint + "/files/" + path;
+    return await fetch(
+        uri,
+        {
+            method: "POST"
+        }
+    );
+};
 const UploadFile = async (
     file: File,
     location: string,
@@ -113,10 +119,10 @@ const UploadFile = async (
             },
             onProgress: function(bytesUploaded, bytesTotal) {
                 let percentage = (bytesUploaded / bytesTotal * 100).toFixed(2)
-                console.log(bytesUploaded, bytesTotal, percentage + "%")
+                console.log((tus_client.file as File).name, bytesUploaded, bytesTotal, percentage + "%")
             },
             onSuccess: function() {
-                console.log("Download %s from %s", (tus_client.file as File).name, tus_client.url);
+                console.log("Succeed. Download %s from %s", (tus_client.file as File).name, tus_client.url);
                 OnFinish();
             }
         }
@@ -132,6 +138,16 @@ const UploadFile = async (
     })
 
 };
+const Delete = async (path: string) => {
+    const store = UseStore();
+    let uri = "http://" + store.endpoint + "/files/" + path;
+    return await fetch(
+        uri,
+        {
+            method: "DELETE"
+        }
+    );
+};
 
 export {RunServer, ShutdownServer, ExecCommand, GetSignalRConnection, IsServerRunning};
-export {GetFolderList, UploadFile};
+export {GetFolderList, CreateDirectory, UploadFile, Delete};

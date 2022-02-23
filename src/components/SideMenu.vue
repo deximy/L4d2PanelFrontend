@@ -7,13 +7,13 @@ import {NDivider} from "naive-ui/es";
 import {h, ref, watch} from "vue";
 import {useRoute as UseRoute, useRouter as UseRouter} from "vue-router";
 
-import {IsServerRunning, RunServer, ShutdownServer} from "../api";
+import {RunServer, ShutdownServer} from "../api";
 import {UseStore} from "../Store";
 
 const router = UseRouter();
 const route = UseRoute();
 
-const current_option = ref(route.name);
+const current_option = ref(route.name?.toString());
 watch(
     current_option,
     value => {
