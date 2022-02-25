@@ -9,12 +9,14 @@ export const UseStore = DefineStore(
         const is_server_running = ref(false);
         const selected_file_name = ref("");
         const selected_file_type = ref("");
+        const current_path = ref("./");
         return {
             endpoint,
             component,
             is_server_running,
             selected_file_name,
             selected_file_type,
+            current_path
         }
     }
 );

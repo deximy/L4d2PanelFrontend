@@ -7,6 +7,7 @@ import {NModal} from "naive-ui/es";
 import {NInput} from "naive-ui/es";
 
 import {h, nextTick, ref, watch} from "vue";
+import {storeToRefs as StoreToRefs} from "pinia";
 
 import {CreateDirectory, Delete, GetFolderList, UploadFile} from "../api";
 import {UseStore} from "../Store";
@@ -141,7 +142,7 @@ const row_props = (row: RowData) => {
     };
 };
 
-let current_path = ref<string>("./");
+let {current_path} = StoreToRefs(store);
 const RefreshDirectory = async (path: string) => {
     let folder_content = await GetFolderList(path);
     if (folder_content === undefined)
